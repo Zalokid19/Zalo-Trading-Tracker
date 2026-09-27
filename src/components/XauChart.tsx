@@ -48,11 +48,11 @@ useEffect(() => {
 }, []);
 
   return (
-    <div className="grid grid-cols-3 gap-4">
-    <div className="col-span-2 bg-card border border-border rounded-xl p-3 shadow-lg shadow-black/40 overflow-hidden">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="md:col-span-2 bg-card border border-border rounded-xl p-3 shadow-lg shadow-black/40 overflow-hidden">
     <div
         ref={containerRef}
-        style={{ height: "560px", width: "100%", position: "relative", overflow: "hidden" }}
+        style={{ height: "min(560px, 60vh)", width: "100%", position: "relative", overflow: "hidden" }}
     />
     </div>
       <div className="bg-card border border-border rounded-xl p-5 shadow-lg shadow-black/40 space-y-5">
