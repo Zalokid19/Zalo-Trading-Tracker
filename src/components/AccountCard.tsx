@@ -86,7 +86,7 @@ export default function AccountCard({ account, trades, onEdit }: Props) {
         />
       </div>
 
-      <div className="grid grid-cols-4 gap-4 bg-card border border-border rounded-xl shadow-lg shadow-black/40 hover:border-accent/30 transition-colors p-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-gradient-to-br from-card to-cardhover border border-border rounded-xl p-5">
         <div>
           <p className="text-xs text-gray-400 mb-1">Balance</p>
           <p className="text-xl font-bold">{formatMoney(account.balance + totalPnl)}</p>
