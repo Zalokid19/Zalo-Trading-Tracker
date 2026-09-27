@@ -28,9 +28,9 @@ function App() {
   }, [trades, accounts]);
 
       return (
-        <div className="min-h-screen bg-bgdark text-white flex">
+        <div className="min-h-screen bg-bgdark text-white flex flex-col md:flex-row relative overflow-hidden">
           <Sidebar active={view} onNavigate={setView} />
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-4 md:p-6 overflow-x-hidden">
           {view === "scorer" ? (
             <SetupScorer accounts={accounts} />
           ) : (
