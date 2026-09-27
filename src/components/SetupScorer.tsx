@@ -180,7 +180,7 @@ export default function SetupScorer({ accounts }: Props) {
   const sortedSetups = [...setups].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
     return (
-    <div className="max-w-6xl">
+    <div className="flex flex-wrap items-center gap-4 mb-4">
       <h1 className="text-2xl font-bold mb-1">Zalo Setup Scorer</h1>
       <p className="text-sm text-accent font-semibold mb-6">XAU/USD</p>
 
@@ -218,7 +218,7 @@ export default function SetupScorer({ accounts }: Props) {
         {error && <p className="text-sm text-red">{error}</p>}
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="col-span-2 space-y-6">
           {perspective && (
             <div className="bg-card border-2 border-accent/40 rounded-xl p-6">
@@ -300,7 +300,7 @@ export default function SetupScorer({ accounts }: Props) {
           const stat = stats.find((s) => s.id === c.id);
           return (
             <div key={c.id} className={`rounded-lg px-3 py-2.5 ${checked[c.id] ? "bg-green/10" : ""}`}>
-              <label className="flex items-center gap-3 text-sm cursor-pointer">
+              <label className="flex flex-wrap items-center gap-2 text-sm cursor-pointer">
                 <input type="checkbox" checked={!!checked[c.id]} onChange={() => toggle(c.id)} className="w-4 h-4 accent-accent" />
                 <span className={checked[c.id] ? "text-white font-medium" : "text-gray-400"}>{c.label}</span>
                 {reasonMap[c.id] && <span className="text-[10px] bg-bgdark border border-border rounded px-1.5 py-0.5 text-gray-500">auto</span>}
