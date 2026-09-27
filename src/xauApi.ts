@@ -1,4 +1,4 @@
-const API_KEY = import.meta.env.VITE_TWELVE_DATA_KEY;
+const API_KEY = "ff798a90b5a34a6b846160af4cebf3b3";
 const BASE_URL = "https://api.twelvedata.com";
 
 export interface Candle {
