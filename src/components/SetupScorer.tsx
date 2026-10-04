@@ -17,9 +17,12 @@ import { loadTracking, saveTracking, resolveTracked, type TrackedSetup } from ".
 const cardCls =
   "bg-gradient-to-b from-card to-cardhover border border-border rounded-xl shadow-xl shadow-black/50 hover:shadow-accent/10 hover:border-accent/20 transition-all p-4 md:p-6";
 
-// Score mapping: a confirmed sequence scores 50 + quality/2, so 80+ means a confirmed setup with quality 60+.
-const SHOW_LEVELS_AT = 80;
-const EXECUTE_AT = 80;
+// Score mapping: a confirmed sequence scores 30 + quality x 2/3, so 70+ means a confirmed setup with
+// quality 60+. That is the line a setup has to cross to be traded, and it is also where the gauge
+// turns "Strong". A sweep still waiting for its shift scores 25.
+const MIN_QUALITY = 60;
+const SHOW_LEVELS_AT = 70;
+const EXECUTE_AT = 70;
 const SCAN_INTERVAL_MS = 5 * 60 * 1000;
 const INTRADAY_TTL_MS = 3 * 60 * 60 * 1000;
 const SWING_TTL_MS = 24 * 60 * 60 * 1000;
@@ -58,6 +61,25 @@ function getLabel(score: number): "Weak" | "Moderate" | "Strong" {
   return "Weak";
 }
 
+// What the screen tells the person. A setup can be real (sweep, shift and FVG all happened in order)
+// and still be too weak to trade, and those are two different messages.
+function statusOf(stage: IctResult["stage"], quality: number, score: number): { headline: string; note: string | null } {
+  if (stage === "confirmed" && score >= SHOW_LEVELS_AT) return { headline: "Confirmed, entry-ready", note: null };
+  if (stage === "confirmed") {
+    return {
+      headline: "Confirmed, but too weak to trade",
+      note: `The sweep, structure shift and FVG all happened in order, but the quality is ${quality}/100 and it needs ${MIN_QUALITY} before it counts as an entry. A small shift or a small gap usually causes this.`,
+    };
+  }
+  if (stage === "swept") {
+    return {
+      headline: "Sweep done, waiting for the shift",
+      note: "Liquidity has been swept. The structure shift and the FVG still have to happen, in that order, before this counts as an entry.",
+    };
+  }
+  return { headline: "No setup yet", note: "No liquidity sweep yet, so there is nothing to trade." };
+}
+
 function scoreOf(r: IctResult): { checked: Record<string, boolean>; score: number } {
   const confirmed = r.stage === "confirmed";
   const checked: Record<string, boolean> = {
@@ -67,7 +89,7 @@ function scoreOf(r: IctResult): { checked: Record<string, boolean>; score: numbe
     fvg: r.fvg,
     entry: confirmed && r.levels !== null,
   };
-  const score = confirmed ? Math.round(50 + r.quality / 2) : r.stage === "swept" ? 25 : 0;
+  const score = confirmed ? Math.round(30 + (r.quality * 2) / 3) : r.stage === "swept" ? 25 : 0;
   return { checked, score };
 }
 
@@ -142,7 +164,7 @@ function StrategyPanel({ title, data }: { title: string; data: PanelData | null 
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-gray-500 uppercase tracking-wide">{title}</p>
         <span className={`text-xs font-semibold ${ready ? "text-green" : "text-gray-500"}`}>
-          {ready ? "Confirmed" : "Forming"}
+          {ready ? "Confirmed" : data.score >= 30 ? "Too weak to trade" : data.score > 0 ? "Waiting for shift" : "No setup"}
         </span>
       </div>
       <p className="text-lg font-bold mb-3">
@@ -175,6 +197,8 @@ export default function SetupScorer(_props: Props) {
   const [bestTf, setBestTf] = useState<string | null>(null);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [score, setScore] = useState(0);
+  const [stage, setStage] = useState<IctResult["stage"]>("none");
+  const [quality, setQuality] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detection, setDetection] = useState<Detail | null>(null);
@@ -217,6 +241,7 @@ export default function SetupScorer(_props: Props) {
   }
 
   const label = getLabel(score);
+  const status = statusOf(stage, quality, score);
   const stats = getCriteriaStats(setups);
 
   async function runAnalysis(silent = false) {
@@ -397,6 +422,8 @@ export default function SetupScorer(_props: Props) {
       setDirection((d) => r.direction ?? d);
       setChecked(best.checked);
       setScore(best.score);
+      setStage(r.stage);
+      setQuality(r.stage === "confirmed" ? r.quality : 0);
       setDetection(detailOf(r));
 
       // The chart draws the same analysis the scorer just made, so the two can never disagree.
@@ -459,6 +486,8 @@ export default function SetupScorer(_props: Props) {
 
     setChecked({});
     setScore(0);
+    setStage("none");
+    setQuality(0);
     setDetection(null);
     setPerspective(null);
     setLevels(null);
@@ -513,7 +542,7 @@ export default function SetupScorer(_props: Props) {
               {bestTf && <span className="text-gray-400 font-normal"> {bestTf}</span>}{" "}
               <span className={directionColor}>{direction.toUpperCase()}</span>{" "}
               <span className="text-gray-500 font-normal text-sm">
-                ({score}/100) — {score >= SHOW_LEVELS_AT ? "Confirmed, entry-ready" : "Forming / No Entry Yet"}
+                ({score}/100) — {status.headline}
               </span>
             </p>
             {otherScores && (
@@ -528,10 +557,8 @@ export default function SetupScorer(_props: Props) {
               </p>
             )}
 
-            {score < SHOW_LEVELS_AT && (
-              <p className="text-xs text-accent mt-2 font-medium">
-                ⚠ Not confirmed yet — the sweep, structure shift and FVG all have to happen in that order before this counts as an entry.
-              </p>
+            {status.note && (
+              <p className="text-xs text-accent mt-2 font-medium">⚠ {status.note}</p>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
