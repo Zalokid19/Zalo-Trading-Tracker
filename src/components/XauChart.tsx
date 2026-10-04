@@ -49,6 +49,7 @@ function buildBands(detection: AutoDetection, direction: "buy" | "sell", candles
       high: detection.orderBlock.zoneHigh,
       low: detection.orderBlock.zoneLow,
       color: direction === "buy" ? "rgba(0, 180, 0, 0.20)" : "rgba(255, 0, 0, 0.18)",
+      border: "rbga(0, 0, 0, 1)"
     });
   }
   if (detection.fvg.detected && detection.fvg.zoneHigh !== undefined && detection.fvg.zoneLow !== undefined) {
@@ -58,6 +59,7 @@ function buildBands(detection: AutoDetection, direction: "buy" | "sell", candles
       low: detection.fvg.zoneLow,
       color: "rgba(224, 224, 224, 0.55)",
       midline: true,
+      border: "rbga(0, 0, 0, 1)"
     });
   }
   const { support, resistance } = findSRZones(candles);
