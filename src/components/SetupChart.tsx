@@ -29,6 +29,9 @@ export interface ChartData {
 }
 
 const TFS = ["1m", "3m", "5m", "15m", "30m", "1h", "4h"];
+// Support / resistance zones only make sense on the bigger timeframes, liquidity from 15m up.
+const SR_TFS = new Set(["30m", "1h", "4h"]);
+const LIQ_TFS = new Set(["15m", "30m", "1h", "4h"]);
 const BLUE = "#2962FF"; // bullish candle
 const BLACK = "#000000"; // bearish candle, and every candle border and wick
 
@@ -157,15 +160,22 @@ export default function SetupChart({ data }: Props) {
 
     const lastIdx = points.length - 1;
     let sr: SRZones | null = null;
-    try {
-      const z = findSRZones(frame.candles);
-      sr = { support: z.support ?? null, resistance: z.resistance ?? null };
-    } catch {
-      sr = null; // not enough candles for zones on this timeframe
+    if (SR_TFS.has(tf)) {
+      try {
+        const z = findSRZones(frame.candles);
+        sr = { support: z.support ?? null, resistance: z.resistance ?? null };
+      } catch {
+        sr = null; // not enough candles for zones on this timeframe
+      }
     }
+    // Liquidity lines (swing highs/lows) and yesterday's high/low are hidden below 15m.
+    const showLiq = LIQ_TFS.has(tf);
+    const rawLiq = findLiquidity(frame.candles);
+    const liquidity = showLiq || !Array.isArray(rawLiq) ? rawLiq : ([] as unknown as typeof rawLiq);
+    const prevDay = (showLiq ? prevDayFrom(data.daily) : null) as ReturnType<typeof prevDayFrom>;
     prim.setShapes(
       [
-        ...buildShapes(frame.result, prevDayFrom(data.daily), lastIdx, findLiquidity(frame.candles), sr),
+        ...buildShapes(frame.result, prevDay, lastIdx, liquidity, sr),
         ...buildTradeShapes(data.trades, frame.candles, lastIdx),
       ],
       lastIdx
@@ -251,7 +261,8 @@ export default function SetupChart({ data }: Props) {
       </div>
 
       <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-[11px] text-gray-500">
-        <span>Black line = liquidity (red text = highs, green text = lows)</span>
+        <span>Black line = liquidity (red text = highs, green text = lows), shown on 15m and up</span>
+        <span>Support / resistance zones show on 30m, 1h and 4h only</span>
         <span>Dashed = liquidity swept</span>
         <span>Grey box = FVG / order block / support / resistance</span>
         <span>+OB / -OB = order block, dashed box = breaker, cyan = volume imbalance, MSS / BOS = structure breaks (ICT button toggles them)</span>
