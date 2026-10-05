@@ -9,7 +9,7 @@ import { getCriteriaStats } from "../criteriaStats";
 import { fetchLotSize, type LotSizing } from "../mt5Api";
 import { notifySetupAlert, notifyOutcomeHit } from "../notifications";
 import { checkSetupOutcome } from "../outcomeChecker";
-import { detectIct, type Candle, type IctResult } from "../ictModel";
+import { detectIct, MIN_QUALITY, type Candle, type IctResult } from "../ictModel";
 import { canTradeToday, recordTrade, tradesToday, MAX_TRADES_PER_DAY } from "../tradeLimit";
 import { executeSetup } from "../autoTrade";
 import { loadTracking, saveTracking, resolveTracked, type TrackedSetup } from "../setupTracker";
@@ -20,7 +20,6 @@ const cardCls =
 // Score mapping: a confirmed sequence scores 30 + quality x 2/3, so 70+ means a confirmed setup with
 // quality 60+. That is the line a setup has to cross to be traded, and it is also where the gauge
 // turns "Strong". A sweep still waiting for its shift scores 25.
-const MIN_QUALITY = 60;
 const SHOW_LEVELS_AT = 70;
 const EXECUTE_AT = 70;
 const SCAN_INTERVAL_MS = 5 * 60 * 1000;
@@ -354,6 +353,11 @@ export default function SetupScorer(_props: Props) {
         if (!loadFired().includes(key)) {
           saveFired(key); // remembered before any await, so an overlapping scan can't fire it twice
           const setupId = crypto.randomUUID();
+          // Where on the chart the setup was confirmed, so its box can start there on any timeframe.
+          const series = ({ "1m": raw1, "3m": raw3, "5m": raw5, "15m": raw15, "30m": raw30, "1h": raw60, "4h": raw240 } as Record<string, typeof raw1>)[best.tf];
+          const ordered = NEWEST_FIRST ? [...series].reverse() : series;
+          const mssAt = r.geometry?.mssIdx;
+          const anchor = mssAt != null ? ordered[mssAt]?.datetime : undefined;
           saveTracking([
             ...loadTracking(),
             {
@@ -365,6 +369,8 @@ export default function SetupScorer(_props: Props) {
               stopLoss: lv.stopLoss,
               tp1: lv.tp1,
               score: best.score,
+              quality: r.quality,
+              anchor,
               checked: Object.keys(best.checked).filter((k) => best.checked[k]),
               firedAt: Date.now(),
               saved: false,
@@ -437,6 +443,14 @@ export default function SetupScorer(_props: Props) {
         frames: chartFrames,
         daily: NEWEST_FIRST ? [...rawDay].reverse() : rawDay,
         bestTf: r.stage === "none" ? null : best.tf,
+        trades: loadTracking().map((t) => ({
+          id: t.id,
+          direction: t.direction,
+          entry: t.entry,
+          stopLoss: t.stopLoss,
+          tp1: t.tp1,
+          anchor: t.anchor,
+        })),
       });
 
       const locked = activeSetupRef.current;

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as LWC from "lightweight-charts";
 import type { IChartApi, IPriceLine, ISeriesApi, Logical, UTCTimestamp } from "lightweight-charts";
-import type { IctResult } from "../ictModel";
-import { buildShapes, findLiquidity, prevDayFrom, ShapesPrimitive, COLORS, type SRZones } from "../chartOverlay";
+import { MIN_QUALITY, type IctResult } from "../ictModel";
+import { buildShapes, buildTradeShapes, findLiquidity, prevDayFrom, ShapesPrimitive, COLORS, type ChartTrade, type SRZones } from "../chartOverlay";
 import { findSRZones } from "../xauAnalysis";
 import { lastDataSource } from "../xauApi";
 
@@ -23,6 +23,7 @@ export interface ChartData {
   frames: Record<string, ChartFrame>;
   daily: { high: number; low: number }[]; // oldest -> newest, last one is today
   bestTf: string | null;
+  trades: ChartTrade[]; // entry-ready setups being followed until their stop or target is hit
 }
 
 const TFS = ["1m", "3m", "5m", "15m", "30m", "1h", "4h"];
@@ -58,15 +59,20 @@ function addCandles(chart: IChartApi): ISeriesApi<"Candlestick"> {
   return c.addSeries!(def, options);
 }
 
-function statusOf(r: IctResult | undefined): { text: string; tone: string } {
+function statusOf(r: IctResult | undefined, trades: ChartTrade[]): { text: string; tone: string } {
+  const t = trades[trades.length - 1];
+  if (t) {
+    return {
+      text: `${t.direction === "buy" ? "Long" : "Short"} trade being followed · entry ${t.entry.toFixed(2)} · stop ${t.stopLoss.toFixed(2)} · target ${t.tp1.toFixed(2)}`,
+      tone: t.direction === "buy" ? "text-green" : "text-red",
+    };
+  }
   if (!r || r.stage === "none") return { text: "No setup on this timeframe right now.", tone: "text-gray-500" };
-  const side = r.direction === "buy" ? "Long" : "Short";
   if (r.stage === "swept") return { text: "Liquidity swept. Waiting for the structure shift.", tone: "text-accent" };
-  const missed = r.entryPassed ? " Price has already reached the entry." : "";
-  return {
-    text: `${side} setup confirmed · quality ${r.quality}/100.${missed}`,
-    tone: r.direction === "buy" ? "text-green" : "text-red",
-  };
+  if (r.quality < MIN_QUALITY) {
+    return { text: `Setup confirmed, but quality ${r.quality}/100 is under ${MIN_QUALITY}, so there is no trade box.`, tone: "text-gray-500" };
+  }
+  return { text: "Setup confirmed, but it isn't being traded (price already reached the entry, or another trade is open).", tone: "text-gray-500" };
 }
 
 interface Props {
@@ -149,17 +155,23 @@ export default function SetupChart({ data }: Props) {
     } catch {
       sr = null; // not enough candles for zones on this timeframe
     }
-    prim.setShapes(buildShapes(frame.result, prevDayFrom(data.daily), lastIdx, findLiquidity(frame.candles), sr), lastIdx);
+    prim.setShapes(
+      [
+        ...buildShapes(frame.result, prevDayFrom(data.daily), lastIdx, findLiquidity(frame.candles), sr),
+        ...buildTradeShapes(data.trades, frame.candles, lastIdx),
+      ],
+      lastIdx
+    );
 
-    // Entry / stop / target tags on the price axis, only while a setup is confirmed.
+    // Entry / stop / target tags on the price axis, only while a trade is being followed.
     for (const l of linesRef.current) series.removePriceLine(l);
     linesRef.current = [];
-    const r = frame.result;
-    if (r.stage === "confirmed" && r.levels) {
+    const trade = data.trades[data.trades.length - 1];
+    if (trade) {
       // Price-only tags on the axis, like TradingView: stop and entry grey, target green.
       const mk = (price: number, color: string) =>
         series.createPriceLine({ price, color, axisLabelColor: color, axisLabelTextColor: "#ffffff", lineVisible: false, axisLabelVisible: true, title: "" });
-      linesRef.current = [mk(r.levels.entry, "#7f7f7f"), mk(r.levels.stopLoss, "#7f7f7f"), mk(r.levels.tp1, COLORS.callout)];
+      linesRef.current = [mk(trade.entry, "#7f7f7f"), mk(trade.stopLoss, "#7f7f7f"), mk(trade.tp1, COLORS.callout)];
     }
 
     if (shownTfRef.current !== tf) {
@@ -171,7 +183,7 @@ export default function SetupChart({ data }: Props) {
     }
   }, [data, tf]);
 
-  const status = statusOf(data?.frames[tf]?.result);
+  const status = statusOf(data?.frames[tf]?.result, data?.trades ?? []);
 
   return (
     <div className="bg-gradient-to-b from-card to-cardhover border border-border rounded-xl shadow-xl shadow-black/50 p-4 md:p-6">
@@ -214,7 +226,7 @@ export default function SetupChart({ data }: Props) {
         <span>Black line = liquidity (red text = highs, green text = lows)</span>
         <span>Dashed = liquidity swept</span>
         <span>Grey box = FVG / order block / support / resistance</span>
-        <span>Grey = entry to stop, green = entry to target</span>
+        <span>Grey / green box = entry to stop / target, only for a tradeable setup, until the stop or target is hit</span>
       </div>
     </div>
   );
