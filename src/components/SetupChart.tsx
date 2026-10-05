@@ -5,6 +5,7 @@ import { MIN_QUALITY, type IctResult } from "../ictModel";
 import { buildShapes, buildTradeShapes, findLiquidity, prevDayFrom, ShapesPrimitive, COLORS, type ChartTrade, type SRZones } from "../chartOverlay";
 import { findSRZones } from "../xauAnalysis";
 import { lastDataSource } from "../xauApi";
+import { analyseStructures } from "../ictStructures";
 
 export interface ChartCandle {
   datetime: string;
@@ -146,6 +147,9 @@ export default function SetupChart({ data }: Props) {
       return { time: t, open: c.open, high: c.high, low: c.low, close: c.close };
     });
     series.setData(points);
+
+    const found = analyseStructures(frame.candles.slice(0, -1)); // closed candles only
+    console.log(tf, found);
 
     const lastIdx = points.length - 1;
     let sr: SRZones | null = null;
