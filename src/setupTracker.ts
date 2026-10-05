@@ -11,6 +11,8 @@ export interface TrackedSetup {
   tp1: number;
   score: number;
   checked: string[];
+  quality?: number;
+  anchor?: string; // datetime of the candle the setup was confirmed on, so the chart can anchor its box there
   firedAt: number; // ms
   saved: boolean; // already written to Setup History as pending
 }

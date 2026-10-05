@@ -195,12 +195,8 @@ export function buildShapes(
     if (g.fvg) {
       shapes.push({ kind: "box", i1: g.fvg.fromIdx, i2: end, top: g.fvg.top, bottom: g.fvg.bottom, fill: COLORS.fvg, label: TEXT.fvg, labelColor: side });
     }
-    if (r.stage === "confirmed" && r.levels) {
-      const { entry, stopLoss, tp1 } = r.levels;
-      // Long / short position tool, starting at the newest candle like the TradingView tool.
-      shapes.push({ kind: "box", i1: lastIdx, i2: end, top: buy ? entry : stopLoss, bottom: buy ? stopLoss : entry, fill: COLORS.stopZone });
-      shapes.push({ kind: "box", i1: lastIdx, i2: end, top: buy ? tp1 : entry, bottom: buy ? entry : tp1, fill: COLORS.targetZone });
-    }
+    // The long / short box is deliberately not drawn here. It belongs to a trade being followed
+    // (see buildTradeShapes), so a weak or passing setup never gets one.
   }
 
   // Yesterday's high and low.
@@ -258,14 +254,48 @@ export function buildShapes(
     });
   }
 
-  // Callouts last, so they sit on top.
-  if (r && r.stage === "confirmed" && r.levels && g) {
-    const { entry, stopLoss, tp1 } = r.levels;
-    shapes.push({ kind: "callout", i: end, price: stopLoss, text: TEXT.stop, color: COLORS.callout });
-    shapes.push({ kind: "callout", i: end, price: entry, text: TEXT.entry, color: COLORS.callout });
-    shapes.push({ kind: "callout", i: end, price: tp1, text: TEXT.target, color: COLORS.callout });
-  }
+  return shapes;
+}
 
+// ---------- the long / short box ----------
+
+// A trade being followed. Only a setup that crossed the quality bar gets one, and it stays until
+// the tracker sees the stop or the target hit.
+export interface ChartTrade {
+  id: string;
+  direction: "buy" | "sell";
+  entry: number;
+  stopLoss: number;
+  tp1: number;
+  anchor?: string; // datetime of the candle the setup was confirmed on
+}
+
+// First candle at or after the anchor time (all timeframes share the same clock text).
+// Falls back to the newest candle.
+export function anchorIndex(candles: { datetime: string }[], anchor: string | undefined): number {
+  const last = candles.length - 1;
+  if (!anchor) return last;
+  const i = candles.findIndex((c) => c.datetime >= anchor);
+  return i === -1 ? last : i;
+}
+
+// Grey entry-to-stop, light green entry-to-target, from where the setup was confirmed to just
+// past the newest candle. The "Stop loss / Entry / Take Profit" callouts go on the newest trade only.
+export function buildTradeShapes(trades: ChartTrade[], candles: { datetime: string }[], lastIdx: number): Shape[] {
+  const shapes: Shape[] = [];
+  const end = lastIdx + 12;
+  for (const t of trades) {
+    const buy = t.direction === "buy";
+    const start = anchorIndex(candles, t.anchor);
+    shapes.push({ kind: "box", i1: start, i2: end, top: buy ? t.entry : t.stopLoss, bottom: buy ? t.stopLoss : t.entry, fill: COLORS.stopZone });
+    shapes.push({ kind: "box", i1: start, i2: end, top: buy ? t.tp1 : t.entry, bottom: buy ? t.entry : t.tp1, fill: COLORS.targetZone });
+  }
+  const t = trades[trades.length - 1];
+  if (t) {
+    shapes.push({ kind: "callout", i: end, price: t.stopLoss, text: TEXT.stop, color: COLORS.callout });
+    shapes.push({ kind: "callout", i: end, price: t.entry, text: TEXT.entry, color: COLORS.callout });
+    shapes.push({ kind: "callout", i: end, price: t.tp1, text: TEXT.target, color: COLORS.callout });
+  }
   return shapes;
 }
 

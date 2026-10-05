@@ -380,3 +380,6 @@ export function detectIct(candles: Candle[], opts: IctOptions = {}): IctResult {
 
   return NONE;
 }
+
+// A confirmed setup has to reach this quality (0-100) before it is traded or gets a position box.
+export const MIN_QUALITY = 60;
