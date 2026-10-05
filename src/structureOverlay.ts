@@ -27,7 +27,10 @@ const MSS_BEAR = "#e60400";
 const FONT = "italic 700 11px Inter, system-ui, sans-serif";
 
 class Renderer implements IPrimitivePaneRenderer {
-  constructor(private owner: StructuresPrimitive) {}
+  private owner: StructuresPrimitive;
+  constructor(owner: StructuresPrimitive) {
+    this.owner = owner;
+  }
   draw(target: Target): void {
     target.useMediaCoordinateSpace(({ context, mediaSize }) => this.owner.paint(context, mediaSize.width));
   }
