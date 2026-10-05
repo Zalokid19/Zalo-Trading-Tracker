@@ -259,15 +259,6 @@ export default function SetupChart({ data }: Props) {
           </div>
         )}
       </div>
-
-      <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-[11px] text-gray-500">
-        <span>Black line = liquidity (red text = highs, green text = lows), shown on 15m and up</span>
-        <span>Support / resistance zones show on 30m, 1h and 4h only</span>
-        <span>Dashed = liquidity swept</span>
-        <span>Grey box = FVG / order block / support / resistance</span>
-        <span>+OB / -OB = order block, dashed box = breaker, cyan = volume imbalance, MSS / BOS = structure breaks (ICT button toggles them)</span>
-        <span>Grey / green box = entry to stop / target, only for a tradeable setup, until the stop or target is hit</span>
-      </div>
     </div>
   );
 }
