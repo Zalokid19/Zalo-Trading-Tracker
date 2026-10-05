@@ -102,15 +102,61 @@ export class StructuresPrimitive implements ISeriesPrimitive<Time> {
       ctx.strokeRect(l + 0.5, t + 0.5, r - l, h);
       ctx.restore();
     };
+    // Labels already drawn this frame, so a new one can be nudged off them instead of overprinting.
+    const placed: { l: number; r: number; t: number; b: number }[] = [];
     const label = (text: string, x: number, y: number, color: string, align: CanvasTextAlign = "left") => {
       ctx.save();
       ctx.font = FONT;
-      ctx.fillStyle = color;
       ctx.textAlign = align;
       ctx.textBaseline = "middle";
-      ctx.fillText(text, Math.max(2, Math.min(x, width - 2)), y);
+      const w = ctx.measureText(text).width;
+      const px = Math.max(2, Math.min(x, width - 2));
+      const left = align === "center" ? px - w / 2 : align === "right" ? px - w : px;
+      const hit = (yy: number) =>
+        placed.some((q) => left < q.r + 3 && left + w > q.l - 3 && yy - 7 < q.b && yy + 7 > q.t);
+      let yy = y;
+      // try below, then above, in growing steps, until the spot is free
+      for (let step = 1; step <= 6 && hit(yy); step++) {
+        const dy = Math.ceil(step / 2) * 13;
+        yy = y + (step % 2 === 1 ? dy : -dy);
+      }
+      placed.push({ l: left, r: left + w, t: yy - 7, b: yy + 7 });
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(255,255,255,0.85)"; // halo keeps text readable over lines and candles
+      ctx.strokeText(text, px, yy);
+      ctx.fillStyle = color;
+      ctx.fillText(text, px, yy);
       ctx.restore();
     };
+
+    // ---- MSS / BOS: the latest MSS and any BOS after it (LuxAlgo "Present" mode) ----
+    let lastMss = -1;
+    for (let i = d.events.length - 1; i >= 0; i--) {
+      if (d.events[i].kind === "MSS") {
+        lastMss = i;
+        break;
+      }
+    }
+    if (lastMss >= 0) {
+      for (const e of d.events.slice(lastMss, lastMss + 5)) {
+        const x1 = X(e.levelIdx);
+        const x2 = X(e.brokeIdx);
+        const y = Y(e.level);
+        if (x1 === null || x2 === null || y === null) continue;
+        const col = e.dir === 1 ? MSS_BULL : MSS_BEAR;
+        ctx.save();
+        ctx.strokeStyle = col;
+        ctx.lineWidth = e.kind === "MSS" ? 1.5 : 1;
+        ctx.setLineDash(e.kind === "MSS" ? [] : [2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(Math.max(0, x1), y + 0.5);
+        ctx.lineTo(Math.min(width, x2), y + 0.5);
+        ctx.stroke();
+        ctx.restore();
+        label(e.kind, (x1 + x2) / 2, e.dir === 1 ? y - 8 : y + 9, col, "center");
+      }
+    }
 
     // ---- Order blocks: the newest bullish and newest bearish one that is still intact ----
     const firstOf = (list: OrderBlock[], dir: 1 | -1) => list.find((o) => o.dir === dir);
@@ -150,32 +196,5 @@ export class StructuresPrimitive implements ISeriesPrimitive<Time> {
       label("VI", x2 + 4, (yT + yB) / 2, VI_CYAN);
     }
 
-    // ---- MSS / BOS: the latest MSS and any BOS after it (LuxAlgo "Present" mode) ----
-    let lastMss = -1;
-    for (let i = d.events.length - 1; i >= 0; i--) {
-      if (d.events[i].kind === "MSS") {
-        lastMss = i;
-        break;
-      }
-    }
-    if (lastMss >= 0) {
-      for (const e of d.events.slice(lastMss, lastMss + 5)) {
-        const x1 = X(e.levelIdx);
-        const x2 = X(e.brokeIdx);
-        const y = Y(e.level);
-        if (x1 === null || x2 === null || y === null) continue;
-        const col = e.dir === 1 ? MSS_BULL : MSS_BEAR;
-        ctx.save();
-        ctx.strokeStyle = col;
-        ctx.lineWidth = e.kind === "MSS" ? 1.5 : 1;
-        ctx.setLineDash(e.kind === "MSS" ? [] : [2, 3]);
-        ctx.beginPath();
-        ctx.moveTo(Math.max(0, x1), y + 0.5);
-        ctx.lineTo(Math.min(width, x2), y + 0.5);
-        ctx.stroke();
-        ctx.restore();
-        label(e.kind, (x1 + x2) / 2, e.dir === 1 ? y - 8 : y + 9, col, "center");
-      }
-    }
   }
 }
